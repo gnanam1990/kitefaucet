@@ -9,16 +9,20 @@ import { getFaucetStatus, type DripResponse } from "./lib/api-client";
 export default function App() {
   const [result, setResult] = useState<{ data: DripResponse; address: string } | null>(null);
   const [lowFaucet, setLowFaucet] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     getFaucetStatus()
       .then((s) => {
+        setApiError(null);
         if (s.ok && s.kite_balance_wei) {
           const kite = Number(BigInt(s.kite_balance_wei) / BigInt(1e15)) / 1000;
           if (kite < 50) setLowFaucet(true);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setApiError("Faucet API is not configured for this Vercel preview yet.");
+      });
   }, []);
 
   return (
@@ -43,6 +47,19 @@ export default function App() {
 
         <section className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="rounded-xl border border-kite-border bg-kite-card p-6 sm:p-8">
+            {apiError && (
+              <div className="mb-5 rounded-md border border-kite-border bg-kite-bg p-4">
+                <p className="text-sm font-semibold text-kite-fg">Faucet API not connected</p>
+                <p className="mt-2 text-sm text-kite-fg/65 leading-relaxed">
+                  The faucet UI is deployed, but real drips need the Hono API running with a
+                  funded testnet wallet, SQLite rate limits, and server-side private key env vars.
+                </p>
+                <p className="mt-3 text-xs font-mono text-kite-fg/55">
+                  Next step: deploy packages/api to Railway or another server host, then set
+                  VITE_FAUCET_API to that URL.
+                </p>
+              </div>
+            )}
             {result ? (
               <DripResult
                 result={result.data}

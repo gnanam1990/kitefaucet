@@ -26,10 +26,10 @@ export function SiteFooter() {
             Kite <ArrowUpRight className="w-3 h-3" />
           </a>
           <span className="opacity-45">•</span>
-          <span>Chain ID 2366</span>
+          <span>Chain ID 2368</span>
         </div>
         <div className="flex items-center gap-6">
-          <a href="https://kitescan.ai" target="_blank" rel="noreferrer" className="hover:text-kite-fg transition-colors">
+          <a href="https://testnet.kitescan.ai" target="_blank" rel="noreferrer" className="hover:text-kite-fg transition-colors">
             KiteScan
           </a>
           <a href="https://agentid-seven.vercel.app" target="_blank" rel="noreferrer" className="hover:text-kite-fg transition-colors">

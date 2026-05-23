@@ -2,7 +2,7 @@
 
 Testnet faucet for Kite devs — drip native KITE + Test USDT in one click. No captcha, sane rate limits.
 
-Live: deploy `packages/web` to Vercel and `packages/api` to Railway / Hetzner / Fly.
+Live: https://kitefaucet.vercel.app
 
 ## Architecture
 
@@ -24,6 +24,13 @@ cp packages/api/.env.example packages/api/.env
 pnpm --filter api dev   # → http://localhost:8787
 pnpm --filter web dev   # → http://localhost:3000 (proxies /api → api)
 ```
+
+## Deployment
+
+- **Production:** https://kitefaucet.vercel.app
+- **Host:** Vercel project `kitefaucet`
+- **Status:** Web UI build verified on 2026-05-23. Real drips require the Hono API on a persistent backend with a funded testnet wallet and server-side private key.
+- **API config:** deploy `packages/api` to Railway or another server host, then set `VITE_FAUCET_API` in the Vercel web project to the API base URL.
 
 ## Limits
 
