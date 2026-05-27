@@ -1,5 +1,11 @@
-const BASE = (import.meta.env.VITE_FAUCET_API ?? "/api") as string;
 const API_UNAVAILABLE = "Faucet API is not configured for this Vercel preview yet.";
+const CONFIGURED_BASE = (import.meta.env.VITE_FAUCET_API as string | undefined)?.trim();
+const BASE = CONFIGURED_BASE ? CONFIGURED_BASE.replace(/\/$/, "") : null;
+
+function apiUrl(path: string): string {
+  if (!BASE) throw new Error(API_UNAVAILABLE);
+  return `${BASE}${path}`;
+}
 
 export interface DripResponse {
   ok?: true;
@@ -29,7 +35,7 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function drip(address: string): Promise<DripResponse> {
-  const res = await fetch(`${BASE}/drip`, {
+  const res = await fetch(apiUrl("/drip"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ address }),
@@ -39,13 +45,13 @@ export async function drip(address: string): Promise<DripResponse> {
 
 export async function getLimits(address: string): Promise<LimitsResponse> {
   const res = await fetch(
-    `${BASE}/status/limits?address=${encodeURIComponent(address)}`
+    apiUrl(`/status/limits?address=${encodeURIComponent(address)}`)
   );
   return readJson<LimitsResponse>(res);
 }
 
 export async function getFaucetStatus() {
-  const res = await fetch(`${BASE}/status`);
+  const res = await fetch(apiUrl("/status"));
   return readJson<{
     ok: boolean;
     faucet_address?: string;
