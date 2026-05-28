@@ -6,7 +6,7 @@ import {
   parseEther,
   parseUnits,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { ERC20_ABI } from "./erc20-abi";
 
 export const kiteTestnet = defineChain({
@@ -23,31 +23,70 @@ const PRIVATE_KEY = process.env.FAUCET_PRIVATE_KEY as `0x${string}` | undefined;
 
 export const publicClient = createPublicClient({ chain: kiteTestnet, transport: http() });
 
+let account: PrivateKeyAccount | null = null;
+let walletClient: ReturnType<typeof createWalletClient> | null = null;
+let txQueue: Promise<unknown> = Promise.resolve();
+let nextNonce: number | null = null;
+
 function getAccount() {
   if (!PRIVATE_KEY || !PRIVATE_KEY.startsWith("0x")) {
     throw new Error("FAUCET_PRIVATE_KEY env var is required (testnet wallet)");
   }
-  return privateKeyToAccount(PRIVATE_KEY);
+  account ??= privateKeyToAccount(PRIVATE_KEY);
+  return account;
 }
 
 export function getWalletClient() {
   const account = getAccount();
-  return createWalletClient({ account, chain: kiteTestnet, transport: http() });
+  walletClient ??= createWalletClient({ account, chain: kiteTestnet, transport: http() });
+  return walletClient;
+}
+
+function enqueueTx<T>(send: (nonce: number) => Promise<T>): Promise<T> {
+  const run = txQueue.then(async () => {
+    const account = getAccount();
+    if (nextNonce === null) {
+      nextNonce = await publicClient.getTransactionCount({
+        address: account.address,
+        blockTag: "pending",
+      });
+    }
+    const nonce = nextNonce;
+    nextNonce += 1;
+    try {
+      return await send(nonce);
+    } catch (error) {
+      nextNonce = null;
+      throw error;
+    }
+  });
+  txQueue = run.catch(() => undefined);
+  return run;
 }
 
 export async function dripNativeKite(to: `0x${string}`, amount: number): Promise<`0x${string}`> {
-  return getWalletClient().sendTransaction({
-    to,
-    value: parseEther(String(amount)),
+  return enqueueTx((nonce) => {
+    return getWalletClient().sendTransaction({
+      account: getAccount(),
+      chain: kiteTestnet,
+      to,
+      value: parseEther(String(amount)),
+      nonce,
+    });
   });
 }
 
 export async function dripTestUsdt(to: `0x${string}`, amount: number): Promise<`0x${string}`> {
-  return getWalletClient().writeContract({
-    address: TEST_USDT,
-    abi: ERC20_ABI,
-    functionName: "transfer",
-    args: [to, parseUnits(String(amount), 18)],
+  return enqueueTx((nonce) => {
+    return getWalletClient().writeContract({
+      account: getAccount(),
+      chain: kiteTestnet,
+      address: TEST_USDT,
+      abi: ERC20_ABI,
+      functionName: "transfer",
+      args: [to, parseUnits(String(amount), 18)],
+      nonce,
+    });
   });
 }
 
