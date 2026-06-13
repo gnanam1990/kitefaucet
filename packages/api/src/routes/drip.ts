@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { checkRateLimit, recordDrip, LIMITS } from "../lib/rate-limit";
+import { acquireClaimLock } from "../lib/claim-lock";
 import { dripNativeKite, dripTestUsdt } from "../lib/wallet";
 
 const drip = new Hono();
@@ -29,15 +30,26 @@ drip.post("/", async (c) => {
   // GitHub OAuth would attach c.set("githubUser", ...) before this handler. v0.1 omits it.
   const githubId: number | undefined = undefined;
 
-  const check = checkRateLimit({ address, ip, githubId });
-  if (!check.allowed) {
-    return c.json({ error: check.reason, ...check }, 429);
+  // Hold an in-process lock across check -> drip -> record so concurrent
+  // claims for the same address/IP cannot both pass the rate-limit check
+  // before either records its drip (double-claim race).
+  const release = acquireClaimLock([address, ip]);
+  if (!release) {
+    return c.json(
+      { error: "A claim for this address is already in progress." },
+      429
+    );
   }
 
-  const kiteAmount = githubId ? LIMITS.AUTH_DAILY_KITE : LIMITS.ANON_DAILY_KITE;
-  const usdtAmount = githubId ? LIMITS.AUTH_DAILY_USDT : LIMITS.ANON_DAILY_USDT;
-
   try {
+    const check = checkRateLimit({ address, ip, githubId });
+    if (!check.allowed) {
+      return c.json({ error: check.reason, ...check }, 429);
+    }
+
+    const kiteAmount = githubId ? LIMITS.AUTH_DAILY_KITE : LIMITS.ANON_DAILY_KITE;
+    const usdtAmount = githubId ? LIMITS.AUTH_DAILY_USDT : LIMITS.ANON_DAILY_USDT;
+
     const kiteTx = await dripNativeKite(address as `0x${string}`, kiteAmount);
     const usdtTx = await dripTestUsdt(address as `0x${string}`, usdtAmount);
 
@@ -64,6 +76,8 @@ drip.post("/", async (c) => {
       { error: "Faucet error", message: (e as Error).message },
       500
     );
+  } finally {
+    release();
   }
 });
 
